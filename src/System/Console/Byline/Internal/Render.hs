@@ -18,6 +18,7 @@ module System.Console.Byline.Internal.Render
        ( RenderMode (..)
        , render
        , renderText
+       , renderInstructions
        ) where
 
 --------------------------------------------------------------------------------
@@ -35,7 +36,6 @@ import System.IO (Handle, hPutStr)
 import System.Console.Byline.Internal.Color as C
 import System.Console.Byline.Internal.Types
 import System.Console.Byline.Stylized
-
 --------------------------------------------------------------------------------
 -- The following is a kludge to avoid the "redundant import" warning
 -- when using GHC >= 7.10.x.  This should be removed after we decide
@@ -47,12 +47,14 @@ import Prelude
 data RenderMode = Plain   -- ^ Text only, no modifiers.
                 | Simple  -- ^ Allow up to 8 colors.
                 | Term256 -- ^ Allow up to 216 colors.
-
+                deriving Show
 --------------------------------------------------------------------------------
 -- | Instructions for formatting stylized text after the 'RenderMode'
 -- has already been considered.
 data RenderInstruction = RenderText Text
                        | RenderSGR [SGR]
+                       deriving Show
+
 
 --------------------------------------------------------------------------------
 -- | Send stylized text to the given handle.  This works on Windows
@@ -74,7 +76,8 @@ renderText mode stylized = Text.concat $ map go (renderInstructions mode stylize
   where
     go :: RenderInstruction -> Text
     go (RenderText t) = t
-    go (RenderSGR  _) = Text.empty
+    go (RenderSGR  sgrs) = Text.pack $ setSGRCode sgrs
+
 
 --------------------------------------------------------------------------------
 -- | Internal function to turn stylized text into render instructions.
@@ -92,6 +95,7 @@ renderInstructions mode = concat . mapStylized renderMod
         _     -> [ RenderSGR  (modToSGR m)
                  , RenderText (modToText mode m)
                  , RenderText t
+                 , RenderText (modToResetText mode m)
                  , RenderSGR [Reset]
                  ]
 
@@ -146,3 +150,11 @@ modToText Term256 m =
     -- Return the 216-color index for (r, g, b).
     colorIndex :: (Word8, Word8, Word8) -> Text
     colorIndex c = Text.pack $ show (nearestColor c term256Locations)
+
+modToResetText :: RenderMode -> Modifier -> Text
+modToResetText Plain _   = Text.empty
+modToResetText Simple _  = Text.empty
+modToResetText Term256 m =
+  if modToText Term256 m == Text.empty
+    then Text.empty
+    else "\ESC[0m"

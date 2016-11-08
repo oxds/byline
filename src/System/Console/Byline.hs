@@ -52,7 +52,7 @@ module System.Console.Byline
          -- repository.
 
          -- * Executing Interactive Sessions
-         Byline
+         Byline(..)
        , runByline
 
          -- * Primitive Operations
